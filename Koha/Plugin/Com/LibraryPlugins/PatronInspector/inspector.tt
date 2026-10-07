@@ -1,0 +1,616 @@
+<style>
+    .koha-box { max-width: 950px; margin: 20px auto; padding: 25px; border: 1px solid #dcdfe6; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); color: #333; }
+    .koha-card { background: #f9fafc; border: 1px solid #e4e7ed; padding: 20px; margin-bottom: 20px; border-radius: 6px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; text-align: center; }
+    .stat-card.clean { border-top: 4px solid #28a745; }
+    .stat-card.fixed { border-top: 4px solid #0066cc; }
+    .stat-card.errors { border-top: 4px solid #dc3545; }
+    .stat-number { font-size: 26px; font-weight: bold; margin-bottom: 4px; }
+    .stat-number.clean { color: #28a745; }
+    .stat-number.fixed { color: #0066cc; }
+    .stat-number.errors { color: #dc3545; }
+    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; font-weight: 600; }
+    .summary-box { background: #f1f5f9; border-left: 4px solid #0066cc; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+    .summary-box h4 { margin: 0 0 10px 0; font-size: 14px; color: #1e293b; }
+    .summary-list { margin: 0; padding-left: 20px; font-size: 13px; color: #334155; }
+    .summary-list li { margin-bottom: 5px; }
+    .filter-container { display: flex; gap: 10px; margin-bottom: 15px; }
+    .filter-btn { background: #e2e8f0; border: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; color: #475569; }
+    .filter-btn.active { background: #0066cc; color: #ffffff; }
+    .btn-inspect { background-color: #0066cc; color: #ffffff; padding: 12px 24px; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; border: none; margin-top: 10px; }
+    .btn-inspect:hover { background-color: #0052a3; }
+    .btn-download { background-color: #28a745; color: #ffffff; padding: 12px 24px; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; border: none; }
+    .btn-download:hover { background-color: #218838; }
+    .badge-ok { background: #d4edda; color: #155724; padding: 3px 8px; font-weight: bold; border-radius: 3px; font-size: 11px; }
+    .badge-err { background: #f8d7da; color: #721c24; padding: 3px 8px; font-weight: bold; border-radius: 3px; font-size: 11px; }
+    .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    .log-table th, .log-table td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
+    .log-table th { background: #f2f4f8; font-weight: bold; }
+    code { background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+</style>
+
+<div id="breadcrumbs">
+    <a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; 
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo; 
+    Patron Import Inspector
+</div>
+
+<div class="main container-fluid">
+    <div class="koha-box">
+        <h2>Koha Patron Import Pre-flight Inspector v[% VERSION %]</h2>
+        <p><em>Security Guarantee: Processing runs 100% locally in your web browser. No patron data or PII is uploaded over any network.</em></p>
+
+        <div class="koha-card">
+            <h3>Koha System Connection Status</h3>
+            <div id="authStatus" style="font-weight: bold; color: #0066cc;">Connecting to Koha system...</div>
+            <p style="margin-top: 8px; margin-bottom: 0; font-size: 12px; color: #666;">
+                <strong>Note:</strong> Category codes are fetched based on your currently logged-in library branch session. If a category code is flagged as missing, ensure you are logged into the branch assigned to that patron category.
+            </p>
+        </div>
+
+        <div class="koha-card">
+            <h3>Upload Patron CSV File</h3>
+            <label for="patronFile"><strong>Select Patron CSV File to Inspect:</strong></label><br>
+            <input type="file" id="patronFile" accept=".csv" style="margin-top: 8px; margin-bottom: 10px;" />
+            <br>
+            <button type="button" id="inspectBtn" class="btn-inspect">Inspect &amp; Sanitize File</button>
+        </div>
+
+        <div id="resultsSection" style="display: none;">
+            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
+            
+            <div class="metrics-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="statTotal">0</div>
+                    <div class="stat-label">Total Rows</div>
+                </div>
+                <div class="stat-card clean">
+                    <div class="stat-number clean" id="statClean">0</div>
+                    <div class="stat-label">100% Clean Rows</div>
+                </div>
+                <div class="stat-card fixed">
+                    <div class="stat-number fixed" id="statFixed">0</div>
+                    <div class="stat-label">Auto-Fixes Made</div>
+                </div>
+                <div class="stat-card errors">
+                    <div class="stat-number errors" id="statErrors">0</div>
+                    <div class="stat-label">Fatal Errors</div>
+                </div>
+            </div>
+
+            <div class="summary-box">
+                <h4>Executive Summary of Actions Taken:</h4>
+                <ul class="summary-list" id="summaryList"></ul>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3>Detailed Issue Log</h3>
+                <button type="button" id="downloadBtn" class="btn-download">Download Koha-Ready CSV</button>
+            </div>
+
+            <div class="filter-container">
+                <button type="button" class="filter-btn active" id="btnFilterAll">Show All Entries</button>
+                <button type="button" class="filter-btn" id="btnFilterFix">Show Auto-Fixes Only</button>
+                <button type="button" class="filter-btn" id="btnFilterErr">Show Errors Only</button>
+            </div>
+
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>Row #</th>
+                        <th>Field</th>
+                        <th>Original Value</th>
+                        <th>Sanitized / Expected</th>
+                        <th>Action / Issue</th>
+                    </tr>
+                </thead>
+                <tbody id="auditBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+var authData = { branches: new Set(), categories: new Set(), attributes: new Set(), relationships: new Set() };
+var cleanedRows = [];
+var changeLogs = [];
+var currentFilter = 'all';
+
+var APPROVED_HEADERS = new Set([
+    'address', 'address2', 'altcontactaddress1', 'altcontactaddress2', 'altcontactaddress3', 
+    'altcontactcountry', 'altcontactfirstname', 'altcontactphone', 'altcontactstate', 
+    'altcontactsurname', 'altcontactzipcode', 'anonymized', 'auth_method', 'autorenew_checkouts', 
+    'b_address', 'b_address2', 'b_city', 'b_country', 'b_email', 'b_phone', 'b_state', 
+    'b_streetnumber', 'b_streettype', 'b_zipcode', 'borrowernotes', 'branchcode', 
+    'cardnumber', 'categorycode', 'checkprevcheckout', 'city', 'contactfirstname', 
+    'contactname', 'contactnote', 'contacttitle', 'country', 'date_renewed', 'dateenrolled', 
+    'dateexpiry', 'dateofbirth', 'debarred', 'debarredcomment', 'email', 'emailpro', 'fax', 
+    'firstname', 'flags', 'gonenoaddress', 'guarantor_id', 'guarantor_relationship', 'initials', 
+    'lang', 'lastseen', 'login_attempts', 'lost', 'middle_name', 'mobile', 'opacnote', 
+    'othernames', 'overdrive_auth_token', 'password', 'password_expiration_date', 
+    'patron_attributes', 'phone', 'phonepro', 'preferred_name', 'primary_contact_method', 
+    'privacy', 'privacy_guarantor_checkouts', 'privacy_guarantor_fines', 'pronouns', 
+    'protected', 'relationship', 'secret', 'sex', 'sms_provider_id', 'smsalertnumber', 
+    'sort1', 'sort2', 'state', 'streetnumber', 'streettype', 'surname', 'title', 
+    'updated_on', 'userid', 'zipcode'
+]);
+
+function applyFilter(filterType) {
+    currentFilter = filterType;
+    document.getElementById('btnFilterAll').classList.toggle('active', filterType === 'all');
+    document.getElementById('btnFilterFix').classList.toggle('active', filterType === 'fix');
+    document.getElementById('btnFilterErr').classList.toggle('active', filterType === 'err');
+    renderLogTable();
+}
+
+function cleanCell(str) {
+    if (!str) return '';
+    var s = str.trim();
+    while ((s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') ||
+           (s.length >= 2 && s.charAt(0) === "'" && s.charAt(s.length - 1) === "'")) {
+        s = s.substring(1, s.length - 1).trim();
+    }
+    return s;
+}
+
+function parseCSVText(text) {
+    var lines = text.split(/\r\n|\n/);
+    var result = [];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        var row = [], inQuotes = false, current = '';
+        for (var c = 0; c < line.length; c++) {
+            var char = line[c];
+            if (char === '"') { inQuotes = !inQuotes; }
+            else if (char === ',' && !inQuotes) { row.push(current); current = ''; }
+            else { current += char; }
+        }
+        row.push(current);
+        result.push(row);
+    }
+    if (result.length === 0) return { headers: [], data: [] };
+    var headers = result[0].map(function(h) { return cleanCell(h); });
+    var data = [];
+    for (var i = 1; i < result.length; i++) {
+        var rowData = {};
+        for (var j = 0; j < headers.length; j++) {
+            rowData[headers[j]] = result[i][j] ? cleanCell(result[i][j]) : '';
+        }
+        data.push(rowData);
+    }
+    return { headers: headers, data: data };
+}
+
+function unparseCSV(data) {
+    if (!data || !data.length) return '';
+    var headers = Object.keys(data[0]);
+    var csv = headers.join(',') + '\n';
+    data.forEach(function(row) {
+        var line = headers.map(function(h) {
+            var val = row[h] || '';
+            if (val.indexOf(',') !== -1 || val.indexOf('"') !== -1) {
+                val = '"' + val.replace(/"/g, '""') + '"';
+            }
+            return val;
+        }).join(',');
+        csv += line + '\n';
+    });
+    return csv;
+}
+
+function sanitizeKohaDate(val, rowNum, fieldName) {
+    if (!val) return val;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
+
+    var unpaddedMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (unpaddedMatch) {
+        var month = unpaddedMatch[1].length === 1 ? '0' + unpaddedMatch[1] : unpaddedMatch[1];
+        var day   = unpaddedMatch[2].length === 1 ? '0' + unpaddedMatch[2] : unpaddedMatch[2];
+        var year  = unpaddedMatch[3];
+        if (parseInt(month, 10) > 12 || parseInt(day, 10) > 31) {
+            changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: 'MM/DD/YYYY', msg: 'Invalid calendar date (' + month + '/' + day + ')', type: 'err', category: 'Invalid Dates' });
+            return val;
+        }
+        var paddedDate = month + '/' + day + '/' + year;
+        changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: paddedDate, msg: 'Zero-padded date (' + val + ' -> ' + paddedDate + ')', type: 'fix', category: 'Dates Zero-Padded' });
+        return paddedDate;
+    }
+
+    var hyphenMatch = val.match(/^(\d{1,2})\-(\d{1,2})\-(\d{4})$/);
+    if (hyphenMatch) {
+        var month = hyphenMatch[1].length === 1 ? '0' + hyphenMatch[1] : hyphenMatch[1];
+        var day   = hyphenMatch[2].length === 1 ? '0' + hyphenMatch[2] : hyphenMatch[2];
+        var year  = hyphenMatch[3];
+        var formattedDate = month + '/' + day + '/' + year;
+        changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: formattedDate, msg: 'Converted hyphenated date', type: 'fix', category: 'Hyphenated Dates Converted' });
+        return formattedDate;
+    }
+
+    changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: 'MM/DD/YYYY or YYYY-MM-DD', msg: 'Invalid date format (requires YYYY-MM-DD or zero-padded MM/DD/YYYY)', type: 'err', category: 'Invalid Dates' });
+    return val;
+}
+
+async function fetchKohaAuthorizedValues() {
+    var statusEl = document.getElementById('authStatus');
+    if (statusEl) statusEl.innerText = "Querying Koha for branches, categories, attributes, and relationships...";
+
+    authData = { branches: new Set(), categories: new Set(), attributes: new Set(), relationships: new Set() };
+
+    // 1. Fetch Branches
+    try {
+        var bRes = await fetch('/api/v1/libraries?_per_page=500');
+        if (bRes.ok) {
+            var branches = await bRes.json();
+            if (Array.isArray(branches)) {
+                branches.forEach(function(b) {
+                    var code = b.library_id || b.branchcode || b.code;
+                    if (code) authData.branches.add(String(code).trim().toUpperCase());
+                });
+            }
+        }
+    } catch (e) { console.warn("Libraries fetch skipped/failed:", e); }
+
+    // 2. Fetch Categories
+    try {
+        var cRes = await fetch('/api/v1/patron_categories?_per_page=500');
+        if (cRes.ok) {
+            var categories = await cRes.json();
+            if (Array.isArray(categories)) {
+                categories.forEach(function(c) {
+                    var code = c.patron_category_id || c.categorycode || c.code;
+                    if (code) authData.categories.add(String(code).trim().toUpperCase());
+                });
+            }
+        }
+    } catch (e) { console.warn("Categories fetch skipped/failed:", e); }
+
+    // 3. Fetch Patron Attribute Types (Trying multiple Koha API endpoints)
+    var attrEndpoints = [
+        '/api/v1/patron_attribute_types?_per_page=500',
+        '/api/v1/patrons/attribute_types?_per_page=500',
+        '/api/v1/extended_patron_attributes'
+    ];
+
+    for (var i = 0; i < attrEndpoints.length; i++) {
+        if (authData.attributes.size > 0) break;
+        try {
+            var aRes = await fetch(attrEndpoints[i]);
+            if (aRes.ok) {
+                var attributes = await aRes.json();
+                if (Array.isArray(attributes)) {
+                    attributes.forEach(function(a) {
+                        var code = a.patron_attribute_type_id || a.code || a.attribute_type_id;
+                        if (code) authData.attributes.add(String(code).trim());
+                    });
+                }
+            }
+        } catch (e) { console.warn("Attribute endpoint " + attrEndpoints[i] + " failed:", e); }
+    }
+
+    // Fallback: Scrape staff admin page if REST API returned 0
+    if (authData.attributes.size === 0) {
+        try {
+            var hRes = await fetch('/cgi-bin/koha/admin/patron-attr-types.pl', { headers: { 'Accept': 'text/html' } });
+            if (hRes.ok) {
+                var htmlText = await hRes.text();
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(htmlText, 'text/html');
+                var rows = doc.querySelectorAll('table tbody tr');
+                rows.forEach(function(tr) {
+                    var td = tr.querySelector('td, th');
+                    if (td) {
+                        var text = td.textContent.trim().split(/\s+/)[0];
+                        if (text && text.length < 30 && !/code|description|actions/i.test(text)) {
+                            authData.attributes.add(text);
+                        }
+                    }
+                });
+            }
+        } catch (e) { console.warn("HTML scrape for attributes failed:", e); }
+    }
+
+    // 4. Fetch Guarantor Relationships strictly via SysPref
+    try {
+        var sysPref = (window.KOHA && window.KOHA.borrowerRelationship) || 
+                      (typeof koha_system_preferences !== 'undefined' && koha_system_preferences.borrowerRelationship) ||
+                      "father|mother|parent|caretaker|grandparent|guardian|relative|spouse|teacher|other";
+        
+        sysPref.split('|').forEach(function(rel) {
+            if (rel.trim()) authData.relationships.add(rel.trim().toLowerCase());
+        });
+    } catch (e) { console.warn("Relationships syspref parse failed:", e); }
+
+    if (statusEl) {
+        statusEl.style.color = '#28a745';
+        statusEl.innerText = '✓ Connected to Koha! Loaded ' + authData.branches.size + ' branches, ' + 
+                           authData.categories.size + ' categories, ' + 
+                           authData.attributes.size + ' attribute types, and ' + 
+                           authData.relationships.size + ' relationships from system preferences.';
+    }
+}
+
+
+
+
+
+
+
+
+function executeInspection() {
+    var patronFileInput = document.getElementById('patronFile');
+
+    if (!patronFileInput || !patronFileInput.files[0]) {
+        alert('Please select a patron CSV file first.');
+        return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var parsed = parseCSVText(e.target.result);
+        cleanedRows = [];
+        changeLogs = [];
+        var rowsWithIssues = new Set();
+
+        parsed.data.forEach(function(row, idx) {
+            var rowNum = idx + 2;
+            var newRow = {};
+
+            for (var rawKey in row) {
+                var cleanKey = rawKey.trim().toLowerCase();
+                var val = cleanCell(row[rawKey] || '');
+
+                if (cleanKey === 'patron_attribute') {
+                    changeLogs.push({ row: rowNum, field: 'Header', orig: rawKey, clean: 'patron_attributes', msg: "Corrected singular header 'patron_attribute' to 'patron_attributes'", type: 'fix', category: 'Headers Normalized' });
+                    cleanKey = 'patron_attributes';
+                    rowsWithIssues.add(rowNum);
+                } else if (rawKey !== cleanKey) {
+                    changeLogs.push({ row: rowNum, field: 'Header', orig: rawKey, clean: cleanKey, msg: 'Header lowercased', type: 'fix', category: 'Headers Normalized' });
+                    rowsWithIssues.add(rowNum);
+                }
+
+                if (!APPROVED_HEADERS.has(cleanKey)) {
+                    changeLogs.push({ row: rowNum, field: 'Header', orig: rawKey, clean: 'Approved Koha Header', msg: "Header '" + rawKey + "' is not a recognized Koha borrower column", type: 'err', category: 'Invalid Column Headers' });
+                    rowsWithIssues.add(rowNum);
+                }
+
+                if (['dateofbirth', 'dateenrolled', 'dateexpiry'].indexOf(cleanKey) !== -1 && val) {
+                    var originalVal = val;
+                    val = sanitizeKohaDate(val, rowNum, cleanKey);
+                    if (val !== originalVal) rowsWithIssues.add(rowNum);
+                }
+
+                if (cleanKey === 'branchcode' && val) {
+                    if (val !== val.toUpperCase()) {
+                        changeLogs.push({ row: rowNum, field: cleanKey, orig: val, clean: val.toUpperCase(), msg: 'Converted to uppercase', type: 'fix', category: 'System Codes Uppercased' });
+                        val = val.toUpperCase();
+                        rowsWithIssues.add(rowNum);
+                    }
+                    if (authData.branches.size > 0 && !authData.branches.has(val)) {
+                        changeLogs.push({ row: rowNum, field: cleanKey, orig: val, clean: 'Valid Branch Code', msg: "Branchcode '" + val + "' not found in Koha DB", type: 'err', category: 'Unrecognized Branch Codes' });
+                        rowsWithIssues.add(rowNum);
+                    }
+                }
+
+                if (cleanKey === 'categorycode' && val) {
+                    if (val !== val.toUpperCase()) {
+                        changeLogs.push({ row: rowNum, field: cleanKey, orig: val, clean: val.toUpperCase(), msg: 'Converted to uppercase', type: 'fix', category: 'System Codes Uppercased' });
+                        val = val.toUpperCase();
+                        rowsWithIssues.add(rowNum);
+                    }
+                    if (authData.categories.size > 0 && !authData.categories.has(val)) {
+                        changeLogs.push({ row: rowNum, field: cleanKey, orig: val, clean: 'Valid Category Code', msg: "Categorycode '" + val + "' not found in Koha DB", type: 'err', category: 'Unrecognized Category Codes' });
+                        rowsWithIssues.add(rowNum);
+                    }
+                }
+
+                if (['guarantor_relationship', 'relationship'].indexOf(cleanKey) !== -1 && val) {
+                    var lowerVal = val.toLowerCase();
+                    if (val !== lowerVal) {
+                        changeLogs.push({ 
+                            row: rowNum, 
+                            field: cleanKey, 
+                            orig: val, 
+                            clean: lowerVal, 
+                            msg: 'Converted relationship code to lowercase to match Koha system preferences', 
+                            type: 'fix', 
+                            category: 'Guarantor Relationship Normalized' 
+                        });
+                        val = lowerVal;
+                        rowsWithIssues.add(rowNum);
+                    }
+                    if (authData.relationships.size > 0 && !authData.relationships.has(lowerVal)) {
+                        changeLogs.push({ 
+                            row: rowNum, 
+                            field: cleanKey, 
+                            orig: val, 
+                            clean: 'Valid Relationship Code', 
+                            msg: "Relationship '" + val + "' not found in Koha borrowerRelationships preference", 
+                            type: 'err', 
+                            category: 'Unrecognized Relationship Codes' 
+                        });
+                        rowsWithIssues.add(rowNum);
+                    }
+                }
+
+                if (cleanKey === 'patron_attributes' && val) {
+                    var attrPairs = [];
+                    if (val.indexOf('|') !== -1) {
+                        attrPairs = val.split('|');
+                    } else {
+                        attrPairs = val.match(/(?:[^\",]+|\"[^\"]*\")+/g) || [val];
+                    }
+
+                    var cleanedPairs = [];
+                    attrPairs.forEach(function(pair) {
+                        var rawPair = pair.trim();
+                        if (!rawPair) return;
+
+                        var pairClean = cleanCell(rawPair);
+                        var parts = pairClean.split(':');
+                        if (parts.length < 2) {
+                            changeLogs.push({ row: rowNum, field: 'patron_attributes', orig: rawPair, clean: 'CODE:VALUE', msg: 'Malformed attribute pair', type: 'err', category: 'Malformed Attributes' });
+                            cleanedPairs.push(pairClean);
+                            rowsWithIssues.add(rowNum);
+                            return;
+                        }
+                        
+                        var attrCode = cleanCell(parts[0]);
+                        var rawAttrVal = parts.slice(1).join(':');
+                        var attrVal = cleanCell(rawAttrVal);
+
+                        var cleanFormattedPair = attrCode + ':' + attrVal;
+
+                        if (rawPair !== cleanFormattedPair) {
+                            changeLogs.push({ 
+                                row: rowNum, 
+                                field: 'patron_attributes [' + attrCode + ']', 
+                                orig: rawPair, 
+                                clean: cleanFormattedPair, 
+                                msg: 'Trimmed whitespace/quotes from attribute pair', 
+                                type: 'fix', 
+                                category: 'Attribute Whitespace Trimmed' 
+                            });
+                            rowsWithIssues.add(rowNum);
+                        }
+
+                        var isDateAttr = /date|dob|expire|expiry/i.test(attrCode) || /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(attrVal);
+                        if (isDateAttr && attrVal) {
+                            var origAttrVal = attrVal;
+                            attrVal = sanitizeKohaDate(attrVal, rowNum, 'patron_attribute [' + attrCode + ']');
+                            if (attrVal !== origAttrVal) rowsWithIssues.add(rowNum);
+                        }
+
+                        if (authData.attributes.size > 0 && !authData.attributes.has(attrCode)) {
+                            changeLogs.push({ 
+                                row: rowNum, 
+                                field: 'patron_attributes', 
+                                orig: attrCode, 
+                                clean: 'Valid Attribute Code', 
+                                msg: "Attribute code '" + attrCode + "' not found in Koha DB", 
+                                type: 'err', 
+                                category: 'Unrecognized Attribute Codes' 
+                            });
+                            rowsWithIssues.add(rowNum);
+                        }
+
+                        cleanedPairs.push(attrCode + ':' + attrVal);
+                    });
+                    
+                    val = cleanedPairs.join('|');
+                }
+
+                newRow[cleanKey] = val;
+            }
+            cleanedRows.push(newRow);
+        });
+
+        renderDashboard(parsed.data.length, rowsWithIssues.size);
+    };
+    reader.readAsText(patronFileInput.files[0]);
+}
+
+function renderDashboard(totalRows, countWithIssues) {
+    document.getElementById('resultsSection').style.display = 'block';
+
+    var fixCount = changeLogs.filter(function(l) { return l.type === 'fix'; }).length;
+    var errCount = changeLogs.filter(function(l) { return l.type === 'err'; }).length;
+    var cleanCount = totalRows - countWithIssues;
+
+    document.getElementById('statTotal').innerText = totalRows;
+    document.getElementById('statClean').innerText = cleanCount;
+    document.getElementById('statFixed').innerText = fixCount;
+    document.getElementById('statErrors').innerText = errCount;
+
+    var summaryList = document.getElementById('summaryList');
+    summaryList.innerHTML = '';
+    if (changeLogs.length === 0) {
+        summaryList.innerHTML = '<li style="color:#28a745; font-weight:bold;">✓ Perfect file! 100% of rows are compliant with Koha standards.</li>';
+    } else {
+        var categoryCounts = {};
+        changeLogs.forEach(function(log) {
+            categoryCounts[log.category] = (categoryCounts[log.category] || 0) + 1;
+        });
+
+        for (var cat in categoryCounts) {
+            var count = categoryCounts[cat];
+            summaryList.innerHTML += '<li><strong>' + cat + ':</strong> ' + count + ' instance' + (count > 1 ? 's' : '') + ' found.</li>';
+        }
+    }
+
+    renderLogTable();
+}
+
+function renderLogTable() {
+    var tbody = document.getElementById('auditBody');
+    if (!tbody) return;
+
+    var filtered = changeLogs.filter(function(log) {
+        if (currentFilter === 'fix') return log.type === 'fix';
+        if (currentFilter === 'err') return log.type === 'err';
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#666; padding:20px;">No entries match the selected filter.</td></tr>';
+        return;
+    }
+
+    var html = '';
+    filtered.forEach(function(log) {
+        var isFix = log.type === 'fix';
+        var badge = isFix 
+            ? '<span class="badge-ok">AUTO-FIXED</span>' 
+            : '<span class="badge-err">ERROR</span>';
+
+        html += '<tr>' +
+            '<td>Row ' + log.row + '</td>' +
+            '<td><strong>' + log.field + '</strong></td>' +
+            '<td><code>' + (log.orig || '') + '</code></td>' +
+            '<td><code>' + (log.clean || '') + '</code></td>' +
+            '<td>' + badge + ' ' + log.msg + '</td>' +
+        '</tr>';
+    });
+
+    tbody.innerHTML = html;
+}
+
+function downloadCleanedCSV() {
+    var csv = unparseCSV(cleanedRows);
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'koha_patrons_cleaned.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+(function() {
+    function initInspector() {
+        fetchKohaAuthorizedValues();
+
+        var inspectBtn = document.getElementById('inspectBtn');
+        var downloadBtn = document.getElementById('downloadBtn');
+
+        if (inspectBtn) inspectBtn.addEventListener('click', executeInspection);
+        if (downloadBtn) downloadBtn.addEventListener('click', downloadCleanedCSV);
+
+        var btnFilterAll = document.getElementById('btnFilterAll');
+        var btnFilterFix = document.getElementById('btnFilterFix');
+        var btnFilterErr = document.getElementById('btnFilterErr');
+
+        if (btnFilterAll) btnFilterAll.addEventListener('click', function() { applyFilter('all'); });
+        if (btnFilterFix) btnFilterFix.addEventListener('click', function() { applyFilter('fix'); });
+        if (btnFilterErr) btnFilterErr.addEventListener('click', function() { applyFilter('err'); });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initInspector);
+    } else {
+        initInspector();
+    }
+})();
+</script>
