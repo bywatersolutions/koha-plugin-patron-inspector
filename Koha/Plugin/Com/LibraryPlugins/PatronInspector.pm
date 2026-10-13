@@ -8,14 +8,14 @@ use C4::Auth qw( get_template_and_user );
 use CGI;
 use Template;
 
-our $VERSION = '1.0.0';
+our $VERSION = "{VERSION}";
 
 our $metadata = {
     name            => 'Patron Import Pre-flight Inspector',
     author          => 'ByWater Solutions Data Team',
     description     => 'Pre-flight CSV inspection and auto-sanitization tool for Koha patron imports.',
     date_authored   => '2026-10-07',
-    date_updated    => '2026-10-07',
+    date_updated    => "1900-01-01",
     minimum_version => '20.05.00.000',
     maximum_version => undef,
     version         => $VERSION,
