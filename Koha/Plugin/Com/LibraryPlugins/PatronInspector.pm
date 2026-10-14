@@ -34,6 +34,9 @@ sub tool {
     $template->param(
         VERSION              => $VERSION,
         attribute_type_codes => [ Koha::Patron::Attribute::Types->search->get_column('code') ],
+
+        # Split the same way Koha::Patron::Relationship does when it validates a relationship
+        borrower_relationships => [ split /\|/, C4::Context->preference('borrowerRelationship') // q{}, -1 ],
     );
 
     $self->output_html( $template->output() );

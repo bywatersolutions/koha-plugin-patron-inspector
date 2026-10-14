@@ -127,6 +127,7 @@ var cleanedRows = [];
 var changeLogs = [];
 var currentFilter = 'all';
 var attributeTypeCodes = [% To.json( attribute_type_codes ) | $raw %];
+var borrowerRelationships = [% To.json( borrower_relationships ) | $raw %];
 
 var APPROVED_HEADERS = new Set([
     'address', 'address2', 'altcontactaddress1', 'altcontactaddress2', 'altcontactaddress3', 
@@ -283,16 +284,10 @@ async function fetchKohaAuthorizedValues() {
         authData.attributes.add(code);
     });
 
-    // 4. Fetch Guarantor Relationships strictly via SysPref
-    try {
-        var sysPref = (window.KOHA && window.KOHA.borrowerRelationship) || 
-                      (typeof koha_system_preferences !== 'undefined' && koha_system_preferences.borrowerRelationship) ||
-                      "father|mother|parent|caretaker|grandparent|guardian|relative|spouse|teacher|other";
-        
-        sysPref.split('|').forEach(function(rel) {
-            if (rel.trim()) authData.relationships.add(rel.trim().toLowerCase());
-        });
-    } catch (e) { console.warn("Relationships syspref parse failed:", e); }
+    // 4. Guarantor Relationships come with the page from the borrowerRelationship system preference
+    borrowerRelationships.forEach(function(rel) {
+        if (rel) authData.relationships.add(rel);
+    });
 
     if (statusEl) {
         statusEl.style.color = '#28a745';
@@ -378,27 +373,30 @@ function executeInspection() {
                 }
 
                 if (['guarantor_relationship', 'relationship'].indexOf(cleanKey) !== -1 && val) {
-                    var lowerVal = val.toLowerCase();
-                    if (val !== lowerVal) {
-                        changeLogs.push({ 
-                            row: rowNum, 
-                            field: cleanKey, 
-                            orig: val, 
-                            clean: lowerVal, 
-                            msg: 'Converted relationship code to lowercase to match Koha system preferences', 
-                            type: 'fix', 
-                            category: 'Guarantor Relationship Normalized' 
+                    // Koha only accepts an exact match, so fix the case to match the system preference
+                    var matchingRelationship = authData.relationships.has(val) ? val : Array.from(authData.relationships).find(function(rel) {
+                        return rel.toLowerCase() === val.toLowerCase();
+                    });
+                    if (matchingRelationship && val !== matchingRelationship) {
+                        changeLogs.push({
+                            row: rowNum,
+                            field: cleanKey,
+                            orig: val,
+                            clean: matchingRelationship,
+                            msg: 'Changed relationship to match the borrowerRelationship system preference',
+                            type: 'fix',
+                            category: 'Guarantor Relationship Normalized'
                         });
-                        val = lowerVal;
+                        val = matchingRelationship;
                         rowsWithIssues.add(rowNum);
                     }
-                    if (authData.relationships.size > 0 && !authData.relationships.has(lowerVal)) {
-                        changeLogs.push({ 
-                            row: rowNum, 
-                            field: cleanKey, 
-                            orig: val, 
-                            clean: 'Valid Relationship Code', 
-                            msg: "Relationship '" + val + "' not found in Koha borrowerRelationships preference", 
+                    if (!matchingRelationship) {
+                        changeLogs.push({
+                            row: rowNum,
+                            field: cleanKey,
+                            orig: val,
+                            clean: 'Valid Relationship Code',
+                            msg: "Relationship '" + val + "' not found in the borrowerRelationship system preference",
                             type: 'err', 
                             category: 'Unrecognized Relationship Codes' 
                         });

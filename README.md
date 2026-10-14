@@ -19,5 +19,5 @@ From the [release page](https://github.com/bywatersolutions/koha-plugin-patron-i
 
 - Column headers are lowercased, and a `patron_attribute` header is corrected to `patron_attributes`. Headers that are not Koha patron fields are flagged.
 - `branchcode` and `categorycode` are uppercased and checked against the libraries and patron categories in Koha.
-- `relationship` and `guarantor_relationship` are lowercased and checked against the `borrowerRelationship` system preference.
+- `relationship` and `guarantor_relationship` are checked against the `borrowerRelationship` system preference, and their case is corrected to match it.
 - `patron_attributes` pairs are trimmed and checked for `CODE:VALUE` format and for attribute type codes that exist in Koha.
