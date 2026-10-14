@@ -49,6 +49,7 @@ jobs:
       run: |
         docker cp . kohadev-koha-1:/var/lib/koha/kohadev/plugins
         docker exec kohadev-koha-1 bash -c 'prove /var/lib/koha/kohadev/plugins/t'
+        docker exec kohadev-koha-1 bash -c 'node --test /var/lib/koha/kohadev/plugins/t/inspector.test.js'
 
     - name: Show koha logs on failure
       if: failure()
