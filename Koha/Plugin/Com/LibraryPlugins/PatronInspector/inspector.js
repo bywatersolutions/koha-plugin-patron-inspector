@@ -242,9 +242,10 @@ function executeInspection() {
                 var val = cleanCell(row[rawKey] || '');
 
                 if (['dateofbirth', 'dateenrolled', 'dateexpiry'].indexOf(cleanKey) !== -1 && val) {
-                    var originalVal = val;
+                    // Invalid dates are logged but left unchanged, so look for a new log entry rather than a new value
+                    var logCount = changeLogs.length;
                     val = sanitizeKohaDate(val, rowNum, cleanKey);
-                    if (val !== originalVal) rowsWithIssues.add(rowNum);
+                    if (changeLogs.length > logCount) rowsWithIssues.add(rowNum);
                 }
 
                 if (cleanKey === 'branchcode' && val) {
@@ -346,9 +347,9 @@ function executeInspection() {
 
                         var isDateAttr = /date|dob|expire|expiry/i.test(attrCode) || /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(attrVal);
                         if (isDateAttr && attrVal) {
-                            var origAttrVal = attrVal;
+                            var attrLogCount = changeLogs.length;
                             attrVal = sanitizeKohaDate(attrVal, rowNum, 'patron_attribute [' + attrCode + ']');
-                            if (attrVal !== origAttrVal) rowsWithIssues.add(rowNum);
+                            if (changeLogs.length > attrLogCount) rowsWithIssues.add(rowNum);
                         }
 
                         if (authData.attributes.size > 0 && !authData.attributes.has(attrCode)) {
