@@ -507,7 +507,10 @@ function executeInspection() {
                         cleanedPairs.push(attrCode + ':' + attrVal);
                     });
                     
-                    val = cleanedPairs.join('|');
+                    // Koha's patron import reads this field as a line of CSV, so pairs are comma separated and quoted if needed
+                    val = cleanedPairs.map(function(pair) {
+                        return /[",]/.test(pair) ? '"' + pair.replace(/"/g, '""') + '"' : pair;
+                    }).join(',');
                 }
 
                 newRow[cleanKey] = val;
