@@ -37,6 +37,8 @@ sub tool {
 
         # Split the same way Koha::Patron::Relationship does when it validates a relationship
         borrower_relationships => [ split /\|/, C4::Context->preference('borrowerRelationship') // q{}, -1 ],
+
+        dateformat => C4::Context->preference('dateformat'),
     );
 
     $self->output_html( $template->output() );

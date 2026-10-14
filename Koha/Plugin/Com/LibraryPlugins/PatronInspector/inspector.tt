@@ -128,6 +128,7 @@ var changeLogs = [];
 var currentFilter = 'all';
 var attributeTypeCodes = [% To.json( attribute_type_codes ) | $raw %];
 var borrowerRelationships = [% To.json( borrower_relationships ) | $raw %];
+var dateFormat = "[% dateformat | html %]";
 
 var APPROVED_HEADERS = new Set([
     'address', 'address2', 'altcontactaddress1', 'altcontactaddress2', 'altcontactaddress3', 
@@ -212,36 +213,55 @@ function unparseCSV(data) {
     return csv;
 }
 
+// Koha's patron import reads dates that aren't ISO in the order set by the dateformat system preference
+var DATE_FORMATS = {
+    us:     { order: ['month', 'day'], separator: '/', pattern: 'MM/DD/YYYY' },
+    metric: { order: ['day', 'month'], separator: '/', pattern: 'DD/MM/YYYY' },
+    dmydot: { order: ['day', 'month'], separator: '.', pattern: 'DD.MM.YYYY' }
+};
+
+function isCalendarDate(year, month, day) {
+    var date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 function sanitizeKohaDate(val, rowNum, fieldName) {
     if (!val) return val;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
 
-    var unpaddedMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (unpaddedMatch) {
-        var month = unpaddedMatch[1].length === 1 ? '0' + unpaddedMatch[1] : unpaddedMatch[1];
-        var day   = unpaddedMatch[2].length === 1 ? '0' + unpaddedMatch[2] : unpaddedMatch[2];
-        var year  = unpaddedMatch[3];
-        if (parseInt(month, 10) > 12 || parseInt(day, 10) > 31) {
-            changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: 'MM/DD/YYYY', msg: 'Invalid calendar date (' + month + '/' + day + ')', type: 'err', category: 'Invalid Dates' });
-            return val;
+    var format = DATE_FORMATS[dateFormat];
+    var expected = format ? 'YYYY-MM-DD or ' + format.pattern : 'YYYY-MM-DD';
+
+    // Koha accepts ISO dates whatever the dateformat system preference is
+    var isoMatch = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+        if (!isCalendarDate(+isoMatch[1], +isoMatch[2], +isoMatch[3])) {
+            changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: expected, msg: 'Invalid calendar date', type: 'err', category: 'Invalid Dates' });
         }
-        var paddedDate = month + '/' + day + '/' + year;
-        changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: paddedDate, msg: 'Zero-padded date (' + val + ' -> ' + paddedDate + ')', type: 'fix', category: 'Dates Zero-Padded' });
-        return paddedDate;
+        return val;
     }
 
-    var hyphenMatch = val.match(/^(\d{1,2})\-(\d{1,2})\-(\d{4})$/);
-    if (hyphenMatch) {
-        var month = hyphenMatch[1].length === 1 ? '0' + hyphenMatch[1] : hyphenMatch[1];
-        var day   = hyphenMatch[2].length === 1 ? '0' + hyphenMatch[2] : hyphenMatch[2];
-        var year  = hyphenMatch[3];
-        var formattedDate = month + '/' + day + '/' + year;
-        changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: formattedDate, msg: 'Converted hyphenated date', type: 'fix', category: 'Hyphenated Dates Converted' });
+    var localMatch = format && val.match(/^(\d{1,2})([\/.\-])(\d{1,2})\2(\d{4})$/);
+    if (localMatch) {
+        var parts = { year: localMatch[4] };
+        parts[format.order[0]] = localMatch[1].length === 1 ? '0' + localMatch[1] : localMatch[1];
+        parts[format.order[1]] = localMatch[3].length === 1 ? '0' + localMatch[3] : localMatch[3];
+        if (!isCalendarDate(+parts.year, +parts.month, +parts.day)) {
+            changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: expected, msg: 'Invalid calendar date', type: 'err', category: 'Invalid Dates' });
+            return val;
+        }
+
+        var formattedDate = [parts[format.order[0]], parts[format.order[1]], parts.year].join(format.separator);
+        if (formattedDate === val) return val;
+
+        if (localMatch[2] === format.separator) {
+            changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: formattedDate, msg: 'Zero-padded date (' + val + ' -> ' + formattedDate + ')', type: 'fix', category: 'Dates Zero-Padded' });
+        } else {
+            changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: formattedDate, msg: 'Converted date separators (' + val + ' -> ' + formattedDate + ')', type: 'fix', category: 'Date Separators Converted' });
+        }
         return formattedDate;
     }
 
-    changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: 'MM/DD/YYYY or YYYY-MM-DD', msg: 'Invalid date format (requires YYYY-MM-DD or zero-padded MM/DD/YYYY)', type: 'err', category: 'Invalid Dates' });
+    changeLogs.push({ row: rowNum, field: fieldName, orig: val, clean: expected, msg: 'Invalid date format (requires ' + expected + ')', type: 'err', category: 'Invalid Dates' });
     return val;
 }
 
