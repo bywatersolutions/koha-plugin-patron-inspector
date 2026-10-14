@@ -340,27 +340,32 @@ function executeInspection() {
         changeLogs = [];
         var rowsWithIssues = new Set();
 
+        // Check the headers once, on the header row, so each problem is only logged once
+        var cleanKeys = {};
+        parsed.headers.forEach(function(rawKey) {
+            var cleanKey = rawKey.trim().toLowerCase();
+
+            if (cleanKey === 'patron_attribute') {
+                changeLogs.push({ row: 1, field: 'Header', orig: rawKey, clean: 'patron_attributes', msg: "Corrected singular header 'patron_attribute' to 'patron_attributes'", type: 'fix', category: 'Headers Normalized' });
+                cleanKey = 'patron_attributes';
+            } else if (rawKey !== cleanKey) {
+                changeLogs.push({ row: 1, field: 'Header', orig: rawKey, clean: cleanKey, msg: 'Header lowercased', type: 'fix', category: 'Headers Normalized' });
+            }
+
+            if (!APPROVED_HEADERS.has(cleanKey)) {
+                changeLogs.push({ row: 1, field: 'Header', orig: rawKey, clean: 'Approved Koha Header', msg: "Header '" + rawKey + "' is not a recognized Koha borrower column", type: 'err', category: 'Invalid Column Headers' });
+            }
+
+            cleanKeys[rawKey] = cleanKey;
+        });
+
         parsed.data.forEach(function(row, idx) {
             var rowNum = idx + 2;
             var newRow = {};
 
             for (var rawKey in row) {
-                var cleanKey = rawKey.trim().toLowerCase();
+                var cleanKey = cleanKeys[rawKey];
                 var val = cleanCell(row[rawKey] || '');
-
-                if (cleanKey === 'patron_attribute') {
-                    changeLogs.push({ row: rowNum, field: 'Header', orig: rawKey, clean: 'patron_attributes', msg: "Corrected singular header 'patron_attribute' to 'patron_attributes'", type: 'fix', category: 'Headers Normalized' });
-                    cleanKey = 'patron_attributes';
-                    rowsWithIssues.add(rowNum);
-                } else if (rawKey !== cleanKey) {
-                    changeLogs.push({ row: rowNum, field: 'Header', orig: rawKey, clean: cleanKey, msg: 'Header lowercased', type: 'fix', category: 'Headers Normalized' });
-                    rowsWithIssues.add(rowNum);
-                }
-
-                if (!APPROVED_HEADERS.has(cleanKey)) {
-                    changeLogs.push({ row: rowNum, field: 'Header', orig: rawKey, clean: 'Approved Koha Header', msg: "Header '" + rawKey + "' is not a recognized Koha borrower column", type: 'err', category: 'Invalid Column Headers' });
-                    rowsWithIssues.add(rowNum);
-                }
 
                 if (['dateofbirth', 'dateenrolled', 'dateexpiry'].indexOf(cleanKey) !== -1 && val) {
                     var originalVal = val;
