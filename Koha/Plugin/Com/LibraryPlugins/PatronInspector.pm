@@ -14,7 +14,7 @@ our $metadata = {
     description     => 'Pre-flight CSV inspection and auto-sanitization tool for Koha patron imports.',
     date_authored   => '2026-10-07',
     date_updated    => "1900-01-01",
-    minimum_version => '20.05.00.000',
+    minimum_version => '24.05.00.000',
     maximum_version => undef,
     version         => $VERSION,
 };
