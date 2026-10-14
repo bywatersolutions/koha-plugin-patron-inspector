@@ -1,3 +1,11 @@
+[% INCLUDE 'doc-head-open.inc' %]
+<title>Patron Import Pre-flight Inspector &rsaquo; Plugins &rsaquo; Koha</title>
+[% INCLUDE 'doc-head-close.inc' %]
+</head>
+<body>
+[% INCLUDE 'header.inc' %]
+[% INCLUDE 'cat-search.inc' %]
+
 <style>
     .koha-box { max-width: 950px; margin: 20px auto; padding: 25px; border: 1px solid #dcdfe6; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); color: #333; }
     .koha-card { background: #f9fafc; border: 1px solid #e4e7ed; padding: 20px; margin-bottom: 20px; border-radius: 6px; }
@@ -38,7 +46,7 @@
 
 <div class="main container-fluid">
     <div class="koha-box">
-        <h2>Koha Patron Import Pre-flight Inspector v[% VERSION %]</h2>
+        <h2>Koha Patron Import Pre-flight Inspector v[% VERSION | html %]</h2>
         <p><em>Security Guarantee: Processing runs 100% locally in your web browser. No patron data or PII is uploaded over any network.</em></p>
 
         <div class="koha-card">
@@ -614,3 +622,5 @@ function downloadCleanedCSV() {
     }
 })();
 </script>
+
+[% INCLUDE 'intranet-bottom.inc' %]
