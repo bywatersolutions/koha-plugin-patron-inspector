@@ -575,10 +575,10 @@ function renderLogTable() {
 
         html += '<tr>' +
             '<td>Row ' + log.row + '</td>' +
-            '<td><strong>' + log.field + '</strong></td>' +
-            '<td><code>' + (log.orig || '') + '</code></td>' +
-            '<td><code>' + (log.clean || '') + '</code></td>' +
-            '<td>' + badge + ' ' + log.msg + '</td>' +
+            '<td><strong>' + escape_str(log.field) + '</strong></td>' +
+            '<td><code>' + escape_str(log.orig) + '</code></td>' +
+            '<td><code>' + escape_str(log.clean) + '</code></td>' +
+            '<td>' + badge + ' ' + escape_str(log.msg) + '</td>' +
         '</tr>';
     });
 
