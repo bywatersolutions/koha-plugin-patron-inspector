@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use base qw(Koha::Plugins::Base);
 use C4::Context;
+use Koha::Patron::Attribute::Types;
 
 our $VERSION = "{VERSION}";
 
@@ -30,7 +31,10 @@ sub tool {
     my ( $self, $args ) = @_;
 
     my $template = $self->get_template( { file => 'inspector.tt' } );
-    $template->param( VERSION => $VERSION );
+    $template->param(
+        VERSION              => $VERSION,
+        attribute_type_codes => [ Koha::Patron::Attribute::Types->search->get_column('code') ],
+    );
 
     $self->output_html( $template->output() );
 }

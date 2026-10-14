@@ -1,3 +1,5 @@
+[% USE raw %]
+[% USE To %]
 [% INCLUDE 'doc-head-open.inc' %]
 <title>Patron Import Pre-flight Inspector &rsaquo; Plugins &rsaquo; Koha</title>
 [% INCLUDE 'doc-head-close.inc' %]
@@ -124,6 +126,7 @@ var authData = { branches: new Set(), categories: new Set(), attributes: new Set
 var cleanedRows = [];
 var changeLogs = [];
 var currentFilter = 'all';
+var attributeTypeCodes = [% To.json( attribute_type_codes ) | $raw %];
 
 var APPROVED_HEADERS = new Set([
     'address', 'address2', 'altcontactaddress1', 'altcontactaddress2', 'altcontactaddress3', 
@@ -275,50 +278,10 @@ async function fetchKohaAuthorizedValues() {
         }
     } catch (e) { console.warn("Categories fetch skipped/failed:", e); }
 
-    // 3. Fetch Patron Attribute Types (Trying multiple Koha API endpoints)
-    var attrEndpoints = [
-        '/api/v1/patron_attribute_types?_per_page=500',
-        '/api/v1/patrons/attribute_types?_per_page=500',
-        '/api/v1/extended_patron_attributes'
-    ];
-
-    for (var i = 0; i < attrEndpoints.length; i++) {
-        if (authData.attributes.size > 0) break;
-        try {
-            var aRes = await fetch(attrEndpoints[i]);
-            if (aRes.ok) {
-                var attributes = await aRes.json();
-                if (Array.isArray(attributes)) {
-                    attributes.forEach(function(a) {
-                        var code = a.patron_attribute_type_id || a.code || a.attribute_type_id;
-                        if (code) authData.attributes.add(String(code).trim());
-                    });
-                }
-            }
-        } catch (e) { console.warn("Attribute endpoint " + attrEndpoints[i] + " failed:", e); }
-    }
-
-    // Fallback: Scrape staff admin page if REST API returned 0
-    if (authData.attributes.size === 0) {
-        try {
-            var hRes = await fetch('/cgi-bin/koha/admin/patron-attr-types.pl', { headers: { 'Accept': 'text/html' } });
-            if (hRes.ok) {
-                var htmlText = await hRes.text();
-                var parser = new DOMParser();
-                var doc = parser.parseFromString(htmlText, 'text/html');
-                var rows = doc.querySelectorAll('table tbody tr');
-                rows.forEach(function(tr) {
-                    var td = tr.querySelector('td, th');
-                    if (td) {
-                        var text = td.textContent.trim().split(/\s+/)[0];
-                        if (text && text.length < 30 && !/code|description|actions/i.test(text)) {
-                            authData.attributes.add(text);
-                        }
-                    }
-                });
-            }
-        } catch (e) { console.warn("HTML scrape for attributes failed:", e); }
-    }
+    // 3. Patron Attribute Types come with the page, Koha has no REST endpoint that lists them
+    attributeTypeCodes.forEach(function(code) {
+        authData.attributes.add(code);
+    });
 
     // 4. Fetch Guarantor Relationships strictly via SysPref
     try {
